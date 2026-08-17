@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col-12 col-md-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title">Cargar fotos escolares</h2>
+        <p>Sube imágenes de actividades escolares con la confirmación de consentimiento de apoderados. Las fotos serán revisadas antes de su publicación.</p>
+        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" id="upload-form">
+          <div class="mb-3">
+            <label for="photos" class="form-label">Seleccionar imágenes</label>
+            <input class="form-control" type="file" id="photos" name="photos" accept="image/*" multiple required>
+          </div>
+          <div class="mb-3" id="preview-container" style="display:none;">
+            <label class="form-label">Previsualización</label>
+            <div id="preview" class="row row-cols-2 row-cols-md-3 g-2"></div>
+          </div>
+          <div class="mb-3">
+            <label for="caption" class="form-label">Descripción / Evento</label>
+            <input class="form-control" id="caption" type="text" name="caption" placeholder="Ej. Feria de Ciencias, partido de básquet" maxlength="255">
+          </div>
+          <div class="mb-3">
+            <label for="category" class="form-label">Categoría</label>
+            <select class="form-select" id="category" name="category">
+              <option>Académico</option>
+              <option>Deportivo</option>
+              <option>Cultural</option>
+              <option selected>General</option>
+            </select>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="consent" name="consent" required>
+            <label class="form-check-label" for="consent">Confirmo que todas las fotos cuentan con consentimiento de los apoderados.</label>
+          </div>
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary btn-lg">Enviar para revisión</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card shadow-sm text-bg-light">
+      <div class="card-body">
+        <h3 class="card-title">Estado del sistema</h3>
+        <p class="card-text">Fotos en espera de aprobación: <strong>{{ pending_count }}</strong></p>
+        <p class="card-text">Puedes usar el panel para aprobar o rechazar contenido.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 class="mb-3">Galería aprobada</h2>
+{% if photos %}
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+  {% for photo in photos %}
+  <div class="col">
+    <div class="card h-100 shadow-sm">
+      <img src="{{ url_for('photo_file', filename=photo.filename) }}" class="card-img-top" alt="{{ photo.caption or 'Foto escolar' }}">
+      <div class="card-body">
+        <h5 class="card-title">{{ photo.category or 'General' }}</h5>
+        <p class="card-text">{{ photo.caption or 'Sin descripción' }}</p>
+      </div>
+      <div class="card-footer text-muted small">
+        Subida el {{ photo.uploaded_at.strftime('%d/%m/%Y %H:%M') }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-info">Aún no hay fotos aprobadas para mostrar. Sube contenido y espera la revisión.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const photoInput = document.getElementById('photos');
+  const previewContainer = document.getElementById('preview-container');
+  const preview = document.getElementById('preview');
+
+  photoInput?.addEventListener('change', () => {
+    preview.innerHTML = '';
+    const files = Array.from(photoInput.files || []);
+    if (!files.length) {
+      previewContainer.style.display = 'none';
+      return;
+    }
+
+    previewContainer.style.display = 'block';
+    files.forEach(file => {
+      const reader = new FileReader();
+      const col = document.createElement('div');
+      col.className = 'col';
+      const card = document.createElement('div');
+      card.className = 'card shadow-sm';
+      const img = document.createElement('img');
+      img.className = 'card-img-top';
+      img.alt = file.name;
+      card.appendChild(img);
+      const body = document.createElement('div');
+      body.className = 'card-body p-2';
+      body.innerHTML = `<p class="card-text small text-truncate mb-0">${file.name}</p>`;
+      card.appendChild(body);
+      col.appendChild(card);
+      preview.appendChild(col);
+
+      reader.onload = event => {
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  });
+</script>
+{% endblock %}

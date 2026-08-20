@@ -57,7 +57,7 @@
   {% for photo in photos %}
   <div class="col">
     <div class="card h-100 shadow-sm">
-      <img src="{{ url_for('photo_file', filename=photo.filename) }}" class="card-img-top" alt="{{ photo.caption or 'Foto escolar' }}">
+      <img src="{{ photo.cloudinary_url }}" class="card-img-top" alt="{{ photo.caption or 'Foto escolar' }}">
       <div class="card-body">
         <h5 class="card-title">{{ photo.category or 'General' }}</h5>
         <p class="card-text">{{ photo.caption or 'Sin descripción' }}</p>

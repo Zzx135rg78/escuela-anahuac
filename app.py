@@ -6,14 +6,30 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user  # utilidades de autenticación
 from flask_sqlalchemy import SQLAlchemy  # ORM para base de datos SQLite
 from werkzeug.utils import secure_filename  # sanitiza nombres de archivo para evitar traversal
+import cloudinary  # SDK de Cloudinary para almacenamiento de imágenes
+import cloudinary.uploader  # utilidad para subir archivos a Cloudinary
+import cloudinary.api  # API administrativa de Cloudinary
 
 BASE_DIR = Path(__file__).resolve().parent  # directorio base del proyecto (donde está app.py)
-UPLOAD_FOLDER = BASE_DIR / "photos"  # carpeta donde se guardarán las fotos subidas
+UPLOAD_FOLDER = BASE_DIR / "photos"  # carpeta donde se guardarán las fotos subidas (fallback local)
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}  # extensiones permitidas para subida
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")  # usuario admin desde variable de entorno (default: admin)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "escuelaanahuac")  # contraseña admin desde variable de entorno (default: escuelaanahuac)
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "cambiar_por_una_clave_segura")  # clave secreta para sesiones
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'app.db'}")  # URI de BD (PostgreSQL en Render, SQLite local)
+
+# Cloudinary config (requerido en Render para persistencia de fotos)
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET")
+
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+        secure=True
+    )
 
 app = Flask(__name__)  # crea la aplicación Flask
 app.config["SECRET_KEY"] = SECRET_KEY
@@ -47,27 +63,45 @@ def load_user(user_id):  # callback que recibe el id almacenado en session
     return None  # sino retorna None (usuario no encontrado)
 
 
-def save_image(file):  # guarda archivo subido en disco con nombre seguro
+def save_image(file):  # sube archivo a Cloudinary (o guarda local si no configurado)
     filename = secure_filename(file.filename)  # sanitiza nombre original
     if not filename or not allowed_file(filename):  # si nombre vacío o extensión no permitida
-        return None  # rechaza el archivo
+        return None, None  # rechaza el archivo
 
-    target = UPLOAD_FOLDER / filename  # ruta destino inicial
-    stem = target.stem  # nombre sin extensión
-    suffix = target.suffix  # extensión con punto
-    counter = 1  # contador para evitar colisiones
-    while target.exists():  # mientras exista archivo con ese nombre
-        target = UPLOAD_FOLDER / f"{stem}_{counter}{suffix}"  # agrega sufijo _1, _2, etc.
-        counter += 1  # incrementa contador
+    # Si Cloudinary está configurado, subir allí
+    if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+        try:
+            result = cloudinary.uploader.upload(
+                file,
+                folder="escuela-anahuac",
+                resource_type="image",
+                overwrite=False
+            )
+            public_id = result.get("public_id")
+            secure_url = result.get("secure_url")
+            return public_id, secure_url
+        except Exception as e:
+            print(f"Error subiendo a Cloudinary: {e}")
+            return None, None
 
-    file.save(target)  # guarda archivo en disco
-    return target.name  # retorna solo el nombre final (sin ruta)
+    # Fallback: guardar local (desarrollo)
+    target = UPLOAD_FOLDER / filename
+    stem = target.stem
+    suffix = target.suffix
+    counter = 1
+    while target.exists():
+        target = UPLOAD_FOLDER / f"{stem}_{counter}{suffix}"
+        counter += 1
+
+    file.save(target)
+    return target.name, url_for('photo_file', filename=target.name, _external=True)
 
 
 class Photo(db.Model):  # modelo SQLAlchemy para tabla photos
     __tablename__ = "photos"  # nombre explícito de la tabla
     id = db.Column(db.Integer, primary_key=True)  # PK autoincremental
-    filename = db.Column(db.String(255), nullable=False, unique=True)  # nombre archivo en disco (único)
+    cloudinary_public_id = db.Column(db.String(255), nullable=False, unique=True)  # ID público en Cloudinary (único)
+    cloudinary_url = db.Column(db.String(500), nullable=False)  # URL segura de la imagen en Cloudinary
     caption = db.Column(db.String(255), nullable=True)  # texto descriptivo opcional
     category = db.Column(db.String(64), nullable=True)  # categoría opcional
     consent = db.Column(db.Boolean, default=False, nullable=False)  # flag consentimiento apoderados
@@ -114,10 +148,11 @@ def upload():  # procesa subida múltiple de archivos
     uploaded = 0  # contador de archivos subidos exitosamente
     for file in files:  # itera cada archivo
         if file and allowed_file(file.filename):  # si archivo existe y extensión válida
-            filename = save_image(file)  # guarda en disco, retorna nombre final
-            if filename:  # si se guardó correctamente
+            public_id, cloudinary_url = save_image(file)  # sube a Cloudinary o local
+            if public_id and cloudinary_url:  # si se subió correctamente
                 photo = Photo(  # crea instancia modelo Photo
-                    filename=filename,
+                    cloudinary_public_id=public_id,
+                    cloudinary_url=cloudinary_url,
                     caption=caption,
                     category=category,
                     consent=True,
@@ -173,9 +208,10 @@ def admin():  # vista panel admin
     )
 
 
-@app.route("/photo/<path:filename>")  # sirve archivos subidos (path permite subdirectorios)
-def photo_file(filename):  # envía archivo desde carpeta uploads
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)  # Flask sirve archivo estático
+@app.route("/photo/<int:photo_id>")  # redirige a la URL de Cloudinary (o sirve local)
+def photo_file(photo_id):
+    photo = Photo.query.get_or_404(photo_id)
+    return redirect(photo.cloudinary_url)
 
 
 @app.route("/approve/<int:photo_id>", methods=["POST"])  # aprueba foto por ID (solo POST)
@@ -184,7 +220,7 @@ def approve(photo_id):  # cambia estado a approved
     photo = Photo.query.get_or_404(photo_id)  # busca foto o 404
     photo.status = "approved"  # actualiza estado
     db.session.commit()  # guarda en BD
-    flash(f"Foto '{photo.filename}' aprobada.", "success")  # mensaje éxito
+    flash(f"Foto '{photo.cloudinary_public_id}' aprobada.", "success")  # mensaje éxito
     return redirect(url_for("admin"))  # redirige a panel
 
 
@@ -194,7 +230,7 @@ def reject(photo_id):  # cambia estado a rejected
     photo = Photo.query.get_or_404(photo_id)  # busca foto o 404
     photo.status = "rejected"  # actualiza estado
     db.session.commit()  # guarda en BD
-    flash(f"Foto '{photo.filename}' rechazada.", "danger")  # mensaje error
+    flash(f"Foto '{photo.cloudinary_public_id}' rechazada.", "danger")  # mensaje error
     return redirect(url_for("admin"))  # redirige a panel
 
 

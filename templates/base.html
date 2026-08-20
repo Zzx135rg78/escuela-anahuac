@@ -88,6 +88,9 @@
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
       <span class="navbar-toggler-icon"></span>
     </button>
+    <button class="navbar-toggler d-lg-none ms-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMenu" aria-controls="offcanvasMenu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto">
         <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Inicio</a></li>
@@ -101,6 +104,30 @@
     </div>
   </div>
 </nav>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvasMenu" aria-labelledby="offcanvasMenuLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="offcanvasMenuLabel">Escuela Anahuac</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+  </div>
+  <div class="offcanvas-body">
+    <ul class="nav flex-column">
+      <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Inicio</a></li>
+      <li class="nav-item"><a class="nav-link" href="{{ url_for('admin') }}">Panel</a></li>
+      {% if current_user.is_authenticated %}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Cerrar sesión</a></li>
+      {% else %}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Iniciar sesión</a></li>
+      {% endif %}
+    </ul>
+    <hr>
+    <div class="d-grid gap-2">
+      <button class="btn btn-outline-primary" type="button" data-bs-dismiss="offcanvas">Filtrar por grado</button>
+      <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Filtrar por evento</button>
+    </div>
+  </div>
+</div>
+
 <div class="container">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}

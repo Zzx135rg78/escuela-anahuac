@@ -81,7 +81,7 @@ Accede a `http://127.0.0.1:5000` (LAN: `http://192.168.104.225:5000`)
 ## Credenciales admin (local)
 
 - Usuario: `admin`
-- Contraseña: `admin123` (cambiar con `ADMIN_PASSWORD`)
+- Contraseña: `escuelaanahuac` (cambiar con `ADMIN_PASSWORD`)
 
 ## Funcionalidades
 

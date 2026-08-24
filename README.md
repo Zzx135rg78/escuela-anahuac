@@ -1,101 +1,119 @@
-# Escuela Anahuac - Galería de Fotos Escolares
+# Escuela Anáhuac – Galería Fotográfica
 
-Aplicación Flask para gestionar y publicar galerías de fotos escolares con panel administrativo.
+Aplicación web para gestión y publicación de fotografías escolares con enfoque en accesibilidad, seguridad y diseño impecable.
 
-## Estado actual
-
-- **Instagram integration removida** - ya no hay dependencia de Instagram Graph API
-- **Galería pública** con tarjetas responsivas (alturas reducidas en móvil/tablet/desktop)
-- **Panel administrativo** para aprobar/rechazar fotos subidas
-- **Offcanvas navigation** en móvil (panel lateral deslizable)
-- **Despliegue configurado** para Render (Blueprint: Web Service + PostgreSQL)
-- **Acceso temporal público** vía cloudflared tunnel
-
-## Estructura del proyecto
+## 🎯 Arquitectura del sistema
 
 ```
-proyecto Anahuac/
-├── app.py                 # Aplicación Flask principal
-├── requirements.txt       # Dependencias Python (incluye gunicorn)
-├── render.yaml           # Blueprint de Render (web + PostgreSQL)
-├── .gitignore            # Excluye venv, DB local, fotos subidas
-├── photos/               # Carpeta de uploads (ephemeral en Render)
-│   └── .gitkeep
-├── static/
-│   └── logo.png
-└── templates/
-    ├── base.html         # Layout base con navbar + offcanvas
-    ├── index.html        # Galería pública
-    ├── admin.html        # Panel administrativo
-    ├── login.html        # Login admin
-    └── upload.html       # Formulario de subida con consentimiento
+        ┌──────────────┐
+        │   Usuario    │
+        │ (Navegador)  │
+        └──────┬───────┘
+               │ HTTPS
+               ▼
+        ┌──────────────┐
+        │    NGINX     │
+        │ Reverse Proxy│
+        └──────┬───────┘
+               │ Proxy Pass
+               ▼
+   ┌──────────────────────────┐
+   │      Docker Container    │
+   │ ┌──────────────────────┐ │
+   │ │      Gunicorn        │ │
+   │ │  WSGI Server (4w)    │ │
+   │ └──────────┬───────────┘ │
+   │            │ WSGI Calls   │
+   │            ▼              │
+   │     Flask Application     │
+   │  (Escuela Anáhuac Gallery)│
+   └──────────┬────────────────┘
+              │
+   ┌──────────┴──────────┐
+   │   SQLite Database    │
+   │ (instance/gallery.db)│
+   └──────────┬──────────┘
+              │
+   ┌──────────┴──────────┐
+   │   Cloudinary CDN     │
+   │ (Opcional imágenes)  │
+   └──────────────────────┘
 ```
 
-## Ejecución local
+## 📂 Estructura principal
 
+| Archivo | Descripción |
+|---------|-------------|
+| `PRODUCT.md` | Contexto del producto, flujos de usuario |
+| `DESIGN.md` | Sistema de diseño completo |
+| `templates/` | Plantillas HTML (index, album, admin, login, base) |
+| `static/` | CSS, JS, imágenes |
+| `app.py` | Aplicación Flask principal con ProxyFix |
+| `Dockerfile` | Imagen de la aplicación con Gunicorn |
+| `docker-compose.yml` | Servicios: App, Nginx, Certbot |
+| `nginx/conf.d/anahuac.conf` | Configuración proxy + ACME challenge |
+
+## 🚀 Despliegue local
+
+### Clonar repositorio
 ```bash
-# 1. Entorno virtual
-python -m venv .venv
-.venv\Scripts\activate
-
-# 2. Dependencias
-pip install -r requirements.txt
-
-# 3. Variables de entorno (opcional, usa defaults)
-set FLASK_SECRET_KEY=dev-secret
-set ADMIN_PASSWORD=admin123
-set DATABASE_URL=sqlite:///app.db
-
-# 4. Inicializar BD
-flask init-db
-
-# 5. Ejecutar
-flask run
-# o: python app.py
+git clone https://github.com/tuusuario/escuela-anahuac-gallery.git
+cd escuela-anahuac-gallery
 ```
 
-Accede a `http://127.0.0.1:5000` (LAN: `http://192.168.104.225:5000`)
+### Crear entorno virtual
+```bash
+python -m venv venv
+source venv/bin/activate   # Linux/Mac
+venv\Scripts\activate      # Windows
+```
 
-## Despliegue en Render (gratis)
+### Instalar dependencias
+```bash
+pip install -r requirements.txt
+```
 
-1. **Push a GitHub**:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/TU_USUARIO/escuela-anahuac.git
-   git push -u origin main
-   ```
+### Configurar `.env` con claves y base de datos
 
-2. **En Render Dashboard** → New Blueprint Instance → Conecta el repo → Apply
+### Inicializar DB
+```bash
+flask init-db
+```
 
-3. **Variables de entorno en Render** (auto-provisionadas + manuales):
-   - `DATABASE_URL` → PostgreSQL (auto)
-   - `FLASK_SECRET_KEY` → generar string aleatorio
-   - `ADMIN_PASSWORD` → contraseña segura
+### Ejecutar servidor
+```bash
+flask run
+```
 
-4. **URL final**: `https://escuela-anahuac.onrender.com`
+## 🌍 Despliegue en producción (Docker + HTTPS)
 
-> ⚠️ **Fotos en Render**: El sistema de archivos es efímero. Para persistencia, integrar **Cloudinary** o **AWS S3** (pendiente).
+### Construir y levantar servicios
+```bash
+docker-compose up --build -d
+```
 
-## Credenciales admin (local)
+### Obtener certificado SSL
+```bash
+docker-compose run --rm certbot certonly --webroot -w /var/www/certbot -d tu-dominio.com
+```
 
-- Usuario: `admin`
-- Contraseña: `admin123` (cambiar con `ADMIN_PASSWORD`)
+### Actualizar `nginx/conf.d/anahuac.conf` con bloque HTTPS
 
-## Funcionalidades
+### Reiniciar Nginx
+```bash
+docker-compose restart nginx
+```
 
-- Subida múltiple de imágenes con consentimiento obligatorio
-- Categorías: Académico, Deportivo, Cultural, General
-- Panel admin: aprobar/rechazar/eliminar fotos
-- Galería pública solo con fotos aprobadas
-- Navegación responsive: navbar desktop + offcanvas móvil
-- Base de datos: SQLite (local) / PostgreSQL (Render)
+## ✅ Checklist de producción
 
-## Próximos pasos
+- [ ] Variables de entorno configuradas
+- [ ] Base de datos inicializada
+- [ ] Certificado SSL activo
+- [ ] App accesible en https://tu-dominio.com
 
-- [ ] Integrar Cloudinary para almacenamiento persistente de fotos
-- [ ] Agregar filtros por grado/evento en galería (botones en offcanvas)
-- [ ] Mejorar UX móvil: drag-drop upload, vista previa
-- [ ] Roles granulares con Flask-Login
-- [ ] Tests automatizados
+## 📜 Créditos
+
+- **Proyecto**: Escuela Anáhuac Photo Gallery
+- **Framework**: Flask + Gunicorn
+- **Infraestructura**: Docker, Nginx, Certbot
+- **Diseño**: Principios Impeccable

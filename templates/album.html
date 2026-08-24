@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="py-4">
+  <header class="text-center mb-5">
+    <h1 class="mb-2">Álbum de Fotos</h1>
+    <p class="text-muted lead">Galería pública de actividades escolares</p>
+  </header>
+
+  <div class="mb-5">
+    <div class="d-flex flex-wrap gap-2 justify-content-center" role="group" aria-label="Filtros de categoría">
+      <button class="btn btn-primary filter-btn active" data-filter="all" aria-pressed="true">Todas</button>
+      <button class="btn btn-outline-primary filter-btn" data-filter="Académico" aria-pressed="false">Académico</button>
+      <button class="btn btn-outline-primary filter-btn" data-filter="Deportivo" aria-pressed="false">Deportivo</button>
+      <button class="btn btn-outline-primary filter-btn" data-filter="Cultural" aria-pressed="false">Cultural</button>
+      <button class="btn btn-outline-primary filter-btn" data-filter="General" aria-pressed="false">General</button>
+    </div>
+  </div>
+
+  {% if photos %}
+  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3" id="photo-gallery" role="list">
+    {% for photo in photos %}
+    <div class="col photo-item" data-category="{{ photo.category }}" role="listitem">
+      <article class="photo-card h-100" tabindex="0" onclick="openLightbox('{{ photo.cloudinary_url | e }}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openLightbox('{{ photo.cloudinary_url | e }}')}">
+        <img src="{{ photo.cloudinary_url }}"
+             style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--photo-radius);"
+             alt="{{ photo.caption or 'Foto escolar' }}"
+             draggable="false"
+             loading="lazy">
+        {% if photo.caption %}
+        <div class="card-img-overlay d-flex align-items-end p-3" style="background:linear-gradient(transparent,rgba(0,0,0,0.7));border-radius:var(--photo-radius);">
+          <p class="card-text text-white small mb-0 text-truncate">{{ photo.caption }}</p>
+        </div>
+        {% endif %}
+        <span class="position-absolute top-0 start-0 m-2 badge bg-light text-dark">{{ photo.category }}</span>
+      </article>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center py-5">
+    <div class="mb-3">
+      <i class="bi bi-images fs-1 text-muted"></i>
+    </div>
+    <h3 class="text-muted mb-2">No hay fotos en el álbum todavía</h3>
+    <p class="text-muted">Las fotos aprobadas aparecerán aquí automáticamente.</p>
+  </div>
+  {% endif %}
+</section>
+
+<div id="lightbox" class="lightbox-overlay" style="display:none;" aria-hidden="true" onclick="closeLightbox()" role="dialog" aria-modal="true" aria-label="Imagen en pantalla completa">
+  <img id="lightbox-img" src="" alt="" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:var(--radius-lg);box-shadow:var(--shadow-2xl);">
+  <button class="lightbox-close" onclick="event.stopPropagation();closeLightbox()" aria-label="Cerrar imagen">×</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openLightbox(url) {
+  const lightbox = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  img.src = url;
+  lightbox.style.display = 'flex';
+  lightbox.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  img.focus();
+}
+
+function closeLightbox() {
+  const lightbox = document.getElementById('lightbox');
+  lightbox.style.display = 'none';
+  lightbox.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLightbox();
+});
+
+document.querySelectorAll('.filter-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn').forEach(function(b) {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    this.classList.add('active');
+    this.setAttribute('aria-pressed', 'true');
+    var f = this.getAttribute('data-filter');
+    document.querySelectorAll('.photo-item').forEach(function(item) {
+      item.style.display = (f === 'all' || item.getAttribute('data-category') === f) ? '' : 'none';
+    });
+  });
+});
+
+// Keyboard navigation for filter buttons
+document.querySelectorAll('.filter-btn').forEach(function(btn) {
+  btn.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this.click();
+    }
+  });
+});
+</script>
+<style>
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.95);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lightbox-close {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  color: white;
+  font-size: 2.5rem;
+  line-height: 1;
+  opacity: 0.7;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  transition: opacity var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+
+.lightbox-close:hover {
+  opacity: 1;
+  background-color: rgba(255,255,255,0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox-overlay { animation: none; }
+}
+
+.photo-card .badge {
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-2);
+}
+</style>
+{% endblock %}

@@ -1,68 +1,246 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row mb-4">
-  <div class="col-12">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="card-title">Panel administrativo</h2>
-        <p>Revisa y aprueba las fotos antes de que formen parte de la galería oficial.</p>
+<section class="py-4">
+  <header class="mb-5">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+      <div>
+        <h2 class="mb-1">Panel administrativo</h2>
+        <p class="text-muted mb-0">Revisa y aprueba las fotos antes de publicarlas.</p>
       </div>
+      <a href="{{ url_for('album') }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-images"></i> Ver álbum público
+      </a>
     </div>
-  </div>
-</div>
+  </header>
 
-<h3>Fotos pendientes</h3>
-{% if pending %}
-<div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
-  {% for photo in pending %}
-  <div class="col">
-    <div class="card h-100 shadow-sm">
-      <img src="{{ photo.cloudinary_url }}" class="card-img-top" alt="{{ photo.caption or 'Foto pendiente' }}">
-      <div class="card-body">
-        <h5 class="card-title">{{ photo.category or 'General' }}</h5>
-        <p class="card-text">{{ photo.caption or 'Sin descripción' }}</p>
-        <p class="text-muted small">Subida el {{ photo.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</p>
-      </div>
-      <div class="card-footer d-flex gap-2 flex-column flex-sm-row">
-        <form action="{{ url_for('approve', photo_id=photo.id) }}" method="post" class="m-0 w-100">
-          <button class="btn btn-success w-100">Aprobar</button>
-        </form>
-        <form action="{{ url_for('reject', photo_id=photo.id) }}" method="post" class="m-0 w-100">
-          <button class="btn btn-danger w-100">Rechazar</button>
-        </form>
-      </div>
-    </div>
-  </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="alert alert-secondary">No hay fotos pendientes.</div>
-{% endif %}
+  <div class="row g-4 mb-5">
+    <div class="col-12 col-lg-8">
+      <article class="card h-100">
+        <div class="card-body">
+          <h4 class="card-title mb-4">Subir nuevas fotos</h4>
+          <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" id="upload-form" class="needs-validation" novalidate>
+            <div class="mb-4">
+              <label for="photos" class="form-label">Seleccionar imágenes</label>
+              <input class="form-control" type="file" id="photos" name="photos" accept="image/*" multiple required aria-describedby="photos-help">
+              <div id="photos-help" class="form-text">Puedes seleccionar múltiples archivos. Formatos: JPG, PNG, GIF, WEBP.</div>
+            </div>
 
-<h3>Fotos aprobadas</h3>
-{% if approved %}
-<div class="row row-cols-1 row-cols-md-2 g-3">
-  {% for photo in approved %}
-  <div class="col">
-    <div class="card h-100 shadow-sm">
-      <img src="{{ photo.cloudinary_url }}" class="card-img-top" alt="{{ photo.caption or 'Foto aprobada' }}">
-      <div class="card-body">
-        <h5 class="card-title">{{ photo.category or 'General' }}</h5>
-        <p class="card-text">{{ photo.caption or 'Sin descripción' }}</p>
-        <p class="text-muted small">Subida el {{ photo.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</p>
-      </div>
-      <div class="card-footer d-flex flex-column flex-sm-row gap-2 justify-content-between align-items-center">
-        <span class="badge bg-success fs-6">Aprobada</span>
-        <form action="{{ url_for('reject', photo_id=photo.id) }}" method="post" class="m-0 w-100 w-sm-auto" onsubmit="return confirm('¿Rechazar esta foto aprobada?')">
-          <button class="btn btn-outline-danger w-100">Rechazar</button>
-        </form>
-      </div>
+            <div class="mb-4" id="preview-container" style="display:none;" aria-live="polite">
+              <label class="form-label">Previsualización</label>
+              <div id="preview" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-3"></div>
+            </div>
+
+            <div class="row g-4 mb-4">
+              <div class="col-12 col-md-8">
+                <label for="caption" class="form-label">Descripción / Evento</label>
+                <input class="form-control" id="caption" type="text" name="caption" placeholder="Ej. Feria de Ciencias" maxlength="255">
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="category" class="form-label">Categoría</label>
+                <select class="form-select" id="category" name="category">
+                  <option value="General" selected>General</option>
+                  <option value="Académico">Académico</option>
+                  <option value="Deportivo">Deportivo</option>
+                  <option value="Cultural">Cultural</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-check mb-4">
+              <input class="form-check-input" type="checkbox" id="consent" name="consent" required>
+              <label class="form-check-label" for="consent">Confirmo que todas las fotos cuentan con consentimiento de los apoderados.</label>
+              <div class="invalid-feedback">Debes confirmar el consentimiento para continuar.</div>
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-cloud-upload"></i> Subir fotos
+              </button>
+            </div>
+          </form>
+        </div>
+      </article>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <aside class="card h-100 border-0 shadow-sm bg-light">
+        <div class="card-body">
+          <h4 class="card-title mb-4">Estado del sistema</h4>
+          <dl class="row mb-4">
+            <dt class="col-6 text-muted small">Fotos pendientes</dt>
+            <dd class="col-6 fw-semibold fs-4 text-dark">{{ pending|length }}</dd>
+            <dt class="col-6 text-muted small">Fotos aprobadas</dt>
+            <dd class="col-6 fw-semibold fs-4 text-dark">{{ approved|length }}</dd>
+          </dl>
+          <hr>
+          <p class="text-muted small mb-0">Las fotos subidas aparecen primero como pendientes. Usa el álbum público para verificar cómo se ven.</p>
+        </div>
+      </aside>
     </div>
   </div>
-  {% endfor %}
-</div>
-{% else %}
-<div class="alert alert-info">Aún no hay fotos aprobadas.</div>
-{% endif %}
+
+  <section aria-labelledby="pending-heading" class="mb-5">
+    <header class="d-flex justify-content-between align-items-center mb-4">
+      <h3 id="pending-heading" class="mb-0">Fotos pendientes</h3>
+      <span class="fs-4 fw-bold text-dark">{{ pending|length }}</span>
+    </header>
+
+    {% if pending %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      {% for photo in pending %}
+      <div class="col">
+        <article class="card h-100">
+          <img src="{{ photo.cloudinary_url }}" class="card-img-top" style="height:160px;object-fit:cover;" alt="{{ photo.caption or 'Foto pendiente' }}" draggable="false">
+          <div class="card-body">
+            {% if photo.caption %}
+            <p class="card-text small mb-3">{{ photo.caption }}</p>
+            {% endif %}
+            <span class="badge bg-warning text-dark mb-2">{{ photo.category }}</span>
+            {% if photo.uploaded_at %}
+            <div class="text-muted small">{{ photo.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</div>
+            {% endif %}
+          </div>
+          <div class="card-footer border-top-0 pt-0">
+            <div class="d-grid gap-2">
+              <form action="{{ url_for('approve', photo_id=photo.id) }}" method="post" class="m-0">
+                <button type="submit" class="btn btn-success" onclick="return confirm('¿Aprobar esta foto para publicación?')">
+                  <i class="bi bi-check-circle"></i> Aprobar
+                </button>
+              </form>
+              <form action="{{ url_for('reject', photo_id=photo.id) }}" method="post" class="m-0">
+                <button type="submit" class="btn btn-outline-secondary" onclick="return confirm('¿Rechazar esta foto?')">
+                  <i class="bi bi-x-circle"></i> Rechazar
+                </button>
+              </form>
+              <form action="{{ url_for('delete', photo_id=photo.id) }}" method="post" class="m-0" onsubmit="return confirm('¿Eliminar esta foto permanentemente? Esta acción no se puede deshacer.')">
+                <button type="submit" class="btn btn-outline-danger">
+                  <i class="bi bi-trash"></i> Eliminar
+                </button>
+              </form>
+            </div>
+          </div>
+        </article>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <div class="mb-3">
+        <i class="bi bi-check-circle fs-1 text-success"></i>
+      </div>
+      <h4 class="text-muted mb-2">No hay fotos pendientes</h4>
+      <p class="text-muted">Todas las fotos han sido revisadas. ¡Buen trabajo!</p>
+    </div>
+    {% endif %}
+  </section>
+
+  <section aria-labelledby="approved-heading">
+    <header class="d-flex justify-content-between align-items-center mb-4">
+      <h3 id="approved-heading" class="mb-0">Fotos aprobadas</h3>
+      <span class="fs-4 fw-bold text-dark">{{ approved|length }}</span>
+    </header>
+
+    {% if approved %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      {% for photo in approved %}
+      <div class="col">
+        <article class="card h-100 border-success">
+          <img src="{{ photo.cloudinary_url }}" class="card-img-top" style="height:160px;object-fit:cover;" alt="{{ photo.caption or 'Foto aprobada' }}" draggable="false">
+          <div class="card-body">
+            {% if photo.caption %}
+            <p class="card-text small mb-3">{{ photo.caption }}</p>
+            {% endif %}
+            <span class="badge bg-success mb-2">{{ photo.category }}</span>
+            {% if photo.uploaded_at %}
+            <div class="text-muted small">{{ photo.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</div>
+            {% endif %}
+          </div>
+          <div class="card-footer border-top-0 pt-0">
+            <div class="d-grid gap-2">
+              <div class="d-flex justify-content-center">
+                <span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle"></i> Aprobada</span>
+              </div>
+              <form action="{{ url_for('reject', photo_id=photo.id) }}" method="post" class="m-0" onsubmit="return confirm('¿Rechazar esta foto aprobada? Volverá a estado pendiente.')">
+                <button type="submit" class="btn btn-outline-secondary">
+                  <i class="bi bi-x-circle"></i> Rechazar
+                </button>
+              </form>
+              <form action="{{ url_for('delete', photo_id=photo.id) }}" method="post" class="m-0" onsubmit="return confirm('¿Eliminar esta foto permanentemente? Esta acción no se puede deshacer.')">
+                <button type="submit" class="btn btn-outline-danger">
+                  <i class="bi bi-trash"></i> Eliminar
+                </button>
+              </form>
+            </div>
+          </div>
+        </article>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <div class="mb-3">
+        <i class="bi bi-images fs-1 text-muted"></i>
+      </div>
+      <h4 class="text-muted mb-2">Aún no hay fotos aprobadas</h4>
+      <p class="text-muted">Las fotos aprobadas aparecerán aquí.</p>
+    </div>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const photoInput = document.getElementById('photos');
+const previewContainer = document.getElementById('preview-container');
+const preview = document.getElementById('preview');
+
+photoInput?.addEventListener('change', () => {
+  preview.innerHTML = '';
+  const files = Array.from(photoInput.files || []);
+  if (!files.length) {
+    previewContainer.style.display = 'none';
+    return;
+  }
+
+  previewContainer.style.display = 'block';
+  files.forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+
+    const reader = new FileReader();
+    const col = document.createElement('div');
+    col.className = 'col';
+    const card = document.createElement('div');
+    card.className = 'card h-100 shadow-sm';
+    const img = document.createElement('img');
+    img.className = 'card-img-top photo-protected';
+    img.alt = file.name;
+    img.draggable = false;
+    img.style.height = '120px';
+    img.style.objectFit = 'cover';
+    card.appendChild(img);
+    const body = document.createElement('div');
+    body.className = 'card-body p-2';
+    body.innerHTML = `<p class="card-text small text-truncate mb-0">${file.name}</p>`;
+    card.appendChild(body);
+    col.appendChild(card);
+    preview.appendChild(col);
+
+    reader.onload = event => {
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+// Form validation
+document.getElementById('upload-form')?.addEventListener('submit', function(e) {
+  const consent = document.getElementById('consent');
+  if (!consent.checked) {
+    e.preventDefault();
+    consent.classList.add('is-invalid');
+  }
+});
+</script>
 {% endblock %}

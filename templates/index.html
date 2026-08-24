@@ -1,116 +1,277 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row mb-4">
-  <div class="col-12 col-md-8">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h2 class="card-title">Cargar fotos escolares</h2>
-        <p>Sube imágenes de actividades escolares con la confirmación de consentimiento de apoderados. Las fotos serán revisadas antes de su publicación.</p>
-        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" id="upload-form">
-          <div class="mb-3">
-            <label for="photos" class="form-label">Seleccionar imágenes</label>
-            <input class="form-control" type="file" id="photos" name="photos" accept="image/*" multiple required>
-          </div>
-          <div class="mb-3" id="preview-container" style="display:none;">
-            <label class="form-label">Previsualización</label>
-            <div id="preview" class="row row-cols-2 row-cols-md-3 g-2"></div>
-          </div>
-          <div class="mb-3">
-            <label for="caption" class="form-label">Descripción / Evento</label>
-            <input class="form-control" id="caption" type="text" name="caption" placeholder="Ej. Feria de Ciencias, partido de básquet" maxlength="255">
-          </div>
-          <div class="mb-3">
-            <label for="category" class="form-label">Categoría</label>
-            <select class="form-select" id="category" name="category">
-              <option>Académico</option>
-              <option>Deportivo</option>
-              <option>Cultural</option>
-              <option selected>General</option>
-            </select>
-          </div>
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="consent" name="consent" required>
-            <label class="form-check-label" for="consent">Confirmo que todas las fotos cuentan con consentimiento de los apoderados.</label>
+<section class="py-4">
+  <div class="row g-4 mb-5">
+    <div class="col-12 col-lg-8">
+      <article class="card h-100">
+        <div class="card-body">
+          <header class="mb-4">
+            <h2 class="card-title mb-2">Cargar fotos escolares</h2>
+            <p class="text-muted mb-0">Sube imágenes de actividades escolares con la confirmación de consentimiento de apoderados. Las fotos serán revisadas antes de su publicación.</p>
+          </header>
+
+          {% if current_user.is_authenticated %}
+          <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" id="upload-form" class="needs-validation" novalidate>
+            <div class="mb-4">
+              <label for="photos" class="form-label">Seleccionar imágenes</label>
+              <input class="form-control" type="file" id="photos" name="photos" accept="image/*" multiple required aria-describedby="photos-help">
+              <div id="photos-help" class="form-text">Puedes seleccionar múltiples archivos. Formatos: JPG, PNG, GIF, WEBP.</div>
+            </div>
+
+            <div class="mb-4" id="preview-container" style="display:none;" aria-live="polite">
+              <label class="form-label">Previsualización</label>
+              <div id="preview" class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-3"></div>
+            </div>
+
+            <div class="row g-4 mb-4">
+              <div class="col-12 col-md-8">
+                <label for="caption" class="form-label">Descripción / Evento</label>
+                <input class="form-control" id="caption" type="text" name="caption" placeholder="Ej. Feria de Ciencias, partido de básquet" maxlength="255">
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="category" class="form-label">Categoría</label>
+                <select class="form-select" id="category" name="category">
+                  <option value="Académico">Académico</option>
+                  <option value="Deportivo">Deportivo</option>
+                  <option value="Cultural">Cultural</option>
+                  <option value="General" selected>General</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-check mb-4">
+              <input class="form-check-input" type="checkbox" id="consent" name="consent" required>
+              <label class="form-check-label" for="consent">Confirmo que todas las fotos cuentan con consentimiento de los apoderados.</label>
+              <div class="invalid-feedback">Debes confirmar el consentimiento para continuar.</div>
+            </div>
+
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-cloud-upload"></i> Enviar para revisión
+              </button>
+            </div>
+          </form>
+          {% else %}
+          <div class="alert alert-info d-flex align-items-center gap-3" role="alert">
+            <i class="bi bi-info-circle fs-4"></i>
+            <div>
+              <strong>Acceso restringido</strong>
+              <p class="mb-0">Para subir fotos, <a href="{{ url_for('login') }}" class="alert-link">inicia sesión</a> como administrador.</p>
+            </div>
           </div>
           <div class="d-grid gap-2">
-            <button type="submit" class="btn btn-primary btn-lg">Enviar para revisión</button>
+            <a href="{{ url_for('album') }}" class="btn btn-primary btn-lg">
+              <i class="bi bi-images"></i> Ver Álbum de Fotos
+            </a>
           </div>
-        </form>
-      </div>
+          {% endif %}
+        </div>
+      </article>
     </div>
-  </div>
-  <div class="col-12 col-md-4">
-    <div class="card shadow-sm text-bg-light">
-      <div class="card-body">
-        <h3 class="card-title">Estado del sistema</h3>
-        <p class="card-text">Fotos en espera de aprobación: <strong>{{ pending_count }}</strong></p>
-        <p class="card-text">Puedes usar el panel para aprobar o rechazar contenido.</p>
-      </div>
-    </div>
-  </div>
-</div>
 
-<h2 class="mb-3">Galería aprobada</h2>
-{% if photos %}
-<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
-  {% for photo in photos %}
-  <div class="col">
-    <div class="card h-100 shadow-sm">
-      <img src="{{ photo.cloudinary_url }}" class="card-img-top" alt="{{ photo.caption or 'Foto escolar' }}">
-      <div class="card-body">
-        <h5 class="card-title">{{ photo.category or 'General' }}</h5>
-        <p class="card-text">{{ photo.caption or 'Sin descripción' }}</p>
-      </div>
-      <div class="card-footer text-muted small">
-        Subida el {{ photo.uploaded_at.strftime('%d/%m/%Y %H:%M') }}
-      </div>
+    <div class="col-12 col-lg-4">
+      <aside class="card h-100 border-0 shadow-sm bg-light">
+        <div class="card-body">
+          <header class="mb-4">
+            <h3 class="card-title mb-0">Estado del sistema</h3>
+          </header>
+          <dl class="row mb-4">
+            <dt class="col-6 text-muted small">Fotos pendientes</dt>
+            <dd class="col-6 fw-semibold fs-5 text-dark">{{ pending_count }}</dd>
+            <dt class="col-6 text-muted small">Estado</dt>
+            <dd class="col-6">
+              {% if pending_count > 0 %}
+              <span class="fw-semibold text-dark">En revisión</span>
+              {% else %}
+              <span class="fw-semibold text-dark">Al día</span>
+              {% endif %}
+            </dd>
+          </dl>
+          <p class="text-muted small mb-4">Solo las fotos aprobadas aparecen en el álbum público.</p>
+
+          {% if not current_user.is_authenticated %}
+          <hr>
+          <h3 class="card-title mb-3">Acceso administrativo</h3>
+          <p class="text-muted small mb-3">Personal autorizado puede iniciar sesión para gestionar contenido.</p>
+          <a href="{{ url_for('login') }}" class="btn btn-outline-primary w-100">Iniciar sesión</a>
+          {% endif %}
+        </div>
+      </aside>
     </div>
   </div>
-  {% endfor %}
+
+  <section aria-labelledby="gallery-heading">
+    <header class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+      <h2 id="gallery-heading" class="mb-0">Galería aprobada</h2>
+      <a href="{{ url_for('album') }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-grid"></i> Ver álbum completo
+      </a>
+    </header>
+
+    {% if photos %}
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3" role="list">
+      {% for photo in photos %}
+      <div class="col" role="listitem">
+        <article class="photo-card h-100" tabindex="0" onclick="openLightbox('{{ photo.cloudinary_url | e }}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openLightbox('{{ photo.cloudinary_url | e }}')}">
+          <img src="{{ photo.cloudinary_url }}"
+               class="photo-protected"
+               alt="{{ photo.caption or 'Foto escolar' }}"
+               draggable="false"
+               loading="lazy"
+               style="width:100%;height:160px;object-fit:cover;border-radius:var(--photo-radius);">
+          {% if photo.caption %}
+          <div class="card-img-overlay d-flex align-items-end p-3" style="background:linear-gradient(transparent,rgba(0,0,0,0.7));">
+            <p class="card-text text-white small mb-0 text-truncate">{{ photo.caption }}</p>
+          </div>
+          {% endif %}
+        </article>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <div class="mb-3">
+        <i class="bi bi-images fs-1 text-muted"></i>
+      </div>
+      <h3 class="text-muted mb-2">Aún no hay fotos aprobadas</h3>
+      <p class="text-muted mb-4">Las fotos aparecerán aquí una vez que un administrador las apruebe.</p>
+      {% if current_user.is_authenticated %}
+      <a href="{{ url_for('admin') }}" class="btn btn-primary">Ir al panel de administración</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+</section>
+
+<div id="lightbox-index" class="lightbox-overlay" style="display:none;" aria-hidden="true" onclick="closeLightboxIndex()" role="dialog" aria-modal="true" aria-label="Imagen en pantalla completa">
+  <img id="lightbox-img-index" src="" alt="" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:var(--radius-lg);box-shadow:var(--shadow-2xl);">
+  <button class="lightbox-close" onclick="event.stopPropagation();closeLightboxIndex()" aria-label="Cerrar imagen">×</button>
 </div>
-{% else %}
-<div class="alert alert-info">Aún no hay fotos aprobadas para mostrar. Sube contenido y espera la revisión.</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
-  const photoInput = document.getElementById('photos');
-  const previewContainer = document.getElementById('preview-container');
-  const preview = document.getElementById('preview');
+function openLightbox(url) {
+  const lightbox = document.getElementById('lightbox-index');
+  const img = document.getElementById('lightbox-img-index');
+  img.src = url;
+  lightbox.style.display = 'flex';
+  lightbox.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  img.focus();
+}
 
-  photoInput?.addEventListener('change', () => {
-    preview.innerHTML = '';
-    const files = Array.from(photoInput.files || []);
-    if (!files.length) {
-      previewContainer.style.display = 'none';
-      return;
-    }
+function closeLightboxIndex() {
+  const lightbox = document.getElementById('lightbox-index');
+  lightbox.style.display = 'none';
+  lightbox.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+}
 
-    previewContainer.style.display = 'block';
-    files.forEach(file => {
-      const reader = new FileReader();
-      const col = document.createElement('div');
-      col.className = 'col';
-      const card = document.createElement('div');
-      card.className = 'card shadow-sm';
-      const img = document.createElement('img');
-      img.className = 'card-img-top';
-      img.alt = file.name;
-      card.appendChild(img);
-      const body = document.createElement('div');
-      body.className = 'card-body p-2';
-      body.innerHTML = `<p class="card-text small text-truncate mb-0">${file.name}</p>`;
-      card.appendChild(body);
-      col.appendChild(card);
-      preview.appendChild(col);
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeLightboxIndex();
+});
 
-      reader.onload = event => {
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
+const photoInput = document.getElementById('photos');
+const previewContainer = document.getElementById('preview-container');
+const preview = document.getElementById('preview');
+
+photoInput?.addEventListener('change', () => {
+  preview.innerHTML = '';
+  const files = Array.from(photoInput.files || []);
+  if (!files.length) {
+    previewContainer.style.display = 'none';
+    return;
+  }
+
+  previewContainer.style.display = 'block';
+  files.forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+
+    const reader = new FileReader();
+    const col = document.createElement('div');
+    col.className = 'col';
+    const card = document.createElement('div');
+    card.className = 'card h-100 shadow-sm';
+    const img = document.createElement('img');
+    img.className = 'card-img-top photo-protected';
+    img.alt = file.name;
+    img.draggable = false;
+    img.style.height = '120px';
+    img.style.objectFit = 'cover';
+    card.appendChild(img);
+    const body = document.createElement('div');
+    body.className = 'card-body p-2';
+    body.innerHTML = `<p class="card-text small text-truncate mb-0">${file.name}</p>`;
+    card.appendChild(body);
+    col.appendChild(card);
+    preview.appendChild(col);
+
+    reader.onload = event => {
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
   });
+});
+
+// Form validation
+document.getElementById('upload-form')?.addEventListener('submit', function(e) {
+  const consent = document.getElementById('consent');
+  if (!consent.checked) {
+    e.preventDefault();
+    consent.classList.add('is-invalid');
+  }
+});
 </script>
+<style>
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.95);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lightbox-close {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  color: white;
+  font-size: 2.5rem;
+  line-height: 1;
+  opacity: 0.7;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  transition: opacity var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+
+.lightbox-close:hover {
+  opacity: 1;
+  background-color: rgba(255,255,255,0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lightbox-overlay { animation: none; }
+}
+</style>
 {% endblock %}

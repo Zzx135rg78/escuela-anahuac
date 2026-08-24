@@ -1,22 +1,37 @@
-﻿import os  # importa el módulo os para leer variables de entorno y trabajar con rutas
-from pathlib import Path  # importa Path para manejar rutas de archivos de forma multiplataforma
-from datetime import datetime  # importa datetime para registrar fechas y horas
+﻿import os
+import uuid
+from pathlib import Path
+from datetime import datetime
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # carga .env para que python app.py y gunicorn vean las correcciones
+except ImportError:
+    pass  # python-dotenv no instalado: se usan variables de entorno del sistema
 
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory  # componentes core de Flask
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user  # utilidades de autenticación
 from flask_sqlalchemy import SQLAlchemy  # ORM para base de datos SQLite
 from werkzeug.utils import secure_filename  # sanitiza nombres de archivo para evitar traversal
+from werkzeug.middleware.proxy_fix import ProxyFix  # para manejar headers de proxy reverso
 import cloudinary  # SDK de Cloudinary para almacenamiento de imágenes
 import cloudinary.uploader  # utilidad para subir archivos a Cloudinary
-import cloudinary.api  # API administrativa de Cloudinary
 
 BASE_DIR = Path(__file__).resolve().parent  # directorio base del proyecto (donde está app.py)
 UPLOAD_FOLDER = BASE_DIR / "photos"  # carpeta donde se guardarán las fotos subidas (fallback local)
+INSTANCE_FOLDER = BASE_DIR / "instance"  # carpeta para BD en Docker
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}  # extensiones permitidas para subida
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")  # usuario admin desde variable de entorno (default: admin)
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "escuelaanahuac")  # contraseña admin desde variable de entorno (default: escuelaanahuac)
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "cambiar_por_una_clave_segura")  # clave secreta para sesiones
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{BASE_DIR / 'app.db'}")  # URI de BD (PostgreSQL en Render, SQLite local)
+# Ruta única de BD para evitar doble archivo (root app.db vs instance/gallery.db)
+DB_PATH = INSTANCE_FOLDER / "gallery.db"
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")  # URI de BD
+# Normaliza sqlite relativo contra BASE_DIR: Flask-SQLAlchemy resuelve rutas
+# relativas contra instance_path (quedaría instance/instance/... inexistente)
+if DATABASE_URL.startswith("sqlite:///") and not DATABASE_URL.startswith("sqlite:////"):
+    _rel = DATABASE_URL[len("sqlite:///"):]
+    if ":memory:" not in _rel and not os.path.isabs(_rel):
+        DATABASE_URL = f"sqlite:///{(BASE_DIR / _rel).resolve()}"
 
 # Cloudinary config (requerido en Render para persistencia de fotos)
 CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME")
@@ -32,13 +47,18 @@ if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
     )
 
 app = Flask(__name__)  # crea la aplicación Flask
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 app.config["SECRET_KEY"] = SECRET_KEY
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL.replace("postgres://", "postgresql://")  # fix para PostgreSQL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False  # desactiva tracking de modificaciones para ahorrar memoria
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_FOLDER)  # configura carpeta de subida para Flask
+app.config["TEMPLATES_AUTO_RELOAD"] = True  # recarga plantillas al refrescar (sin reiniciar servidor)
 
 if not UPLOAD_FOLDER.exists():  # si la carpeta photos no existe
     UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)  # la crea (incluyendo padres si hiciera falta)
+
+if not INSTANCE_FOLDER.exists():  # si la carpeta instance no existe (Docker)
+    INSTANCE_FOLDER.mkdir(parents=True, exist_ok=True)  # la crea
 
 db = SQLAlchemy(app)  # inicializa SQLAlchemy con la app
 login_manager = LoginManager(app)  # inicializa Flask-Login con la app
@@ -68,33 +88,39 @@ def save_image(file):  # sube archivo a Cloudinary (o guarda local si no configu
     if not filename or not allowed_file(filename):  # si nombre vacío o extensión no permitida
         return None, None  # rechaza el archivo
 
-    # Si Cloudinary está configurado, subir allí
+    # Extraer extensión original
+    ext = filename.rsplit(".", 1)[1].lower() if "." in filename else "jpg"
+    # Generar ID único para evitar conflictos
+    unique_id = str(uuid.uuid4())[:8]
+    safe_filename = f"{unique_id}.{ext}"
+
+    # Guardar local primero (siempre funciona)
+    target = UPLOAD_FOLDER / safe_filename
+
+    file.save(target)
+    local_url = url_for('uploaded_file', filename=safe_filename, _external=True)
+
+    # Si Cloudinary está configurado, subir allí también
     if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
         try:
             result = cloudinary.uploader.upload(
-                file,
+                target,
                 folder="escuela-anahuac",
                 resource_type="image",
                 overwrite=False
             )
             public_id = result.get("public_id")
             secure_url = result.get("secure_url")
+            # Eliminar archivo local después de subir a Cloudinary
+            if target.exists():
+                target.unlink()
             return public_id, secure_url
         except Exception as e:
-            print(f"Error subiendo a Cloudinary: {e}")
-            return None, None
+            print(f"Cloudinary upload failed, using local: {e}")
+            return safe_filename, local_url
 
-    # Fallback: guardar local (desarrollo)
-    target = UPLOAD_FOLDER / filename
-    stem = target.stem
-    suffix = target.suffix
-    counter = 1
-    while target.exists():
-        target = UPLOAD_FOLDER / f"{stem}_{counter}{suffix}"
-        counter += 1
-
-    file.save(target)
-    return target.name, url_for('photo_file', filename=target.name, _external=True)
+    # Sin Cloudinary: usar URL local
+    return safe_filename, local_url
 
 
 class Photo(db.Model):  # modelo SQLAlchemy para tabla photos
@@ -126,16 +152,23 @@ def index():  # vista principal
     return render_template("index.html", photos=photos, pending_count=pending_count)  # renderiza plantilla con datos
 
 
+@app.route("/album")  # álbum público (solo vista, sin descarga)
+def album():  # vista del álbum público
+    photos = Photo.query.filter_by(status="approved").order_by(Photo.uploaded_at.desc()).all()  # fotos aprobadas
+    return render_template("album.html", photos=photos)  # renderiza plantilla del álbum
+
+
 @app.route("/upload", methods=["POST"])  # endpoint para subir fotos (solo POST)
+@login_required  # requiere sesión admin
 def upload():  # procesa subida múltiple de archivos
     if "photos" not in request.files:  # si no viene campo 'photos' en formulario
         flash("Selecciona al menos una imagen para subir.", "warning")  # mensaje de advertencia
-        return redirect(url_for("index"))  # redirige a inicio
+        return redirect(url_for("admin"))  # redirige a panel admin
 
     files = request.files.getlist("photos")  # lista de archivos subidos (múltiple)
     if not files or files == [None]:  # si lista vacía o solo None
         flash("Selecciona archivos válidos.", "warning")  # mensaje de advertencia
-        return redirect(url_for("index"))  # redirige a inicio
+        return redirect(url_for("admin"))  # redirige a panel admin
 
     caption = request.form.get("caption", "").strip()  # caption del formulario (vacío si no hay)
     category = request.form.get("category", "General")  # categoría del formulario (default: General)
@@ -143,7 +176,7 @@ def upload():  # procesa subida múltiple de archivos
 
     if not consent:  # si no aceptó consentimiento
         flash("Debes confirmar el consentimiento de los apoderados para continuar.", "danger")  # mensaje error
-        return redirect(url_for("index"))  # redirige a inicio
+        return redirect(url_for("admin"))  # redirige a panel admin
 
     uploaded = 0  # contador de archivos subidos exitosamente
     for file in files:  # itera cada archivo
@@ -167,7 +200,7 @@ def upload():  # procesa subida múltiple de archivos
     else:  # si no se subió ninguno válido
         flash("No se subieron imágenes válidas. Usa JPG, PNG, GIF o WEBP.", "danger")  # mensaje error
 
-    return redirect(url_for("index"))  # redirige a inicio
+    return redirect(url_for("admin"))  # redirige a panel admin
 
 
 @app.route("/login", methods=["GET", "POST"])  # ruta login: GET muestra form, POST procesa
@@ -214,6 +247,11 @@ def photo_file(photo_id):
     return redirect(photo.cloudinary_url)
 
 
+@app.route("/uploads/<filename>")  # sirve archivos locales desde la carpeta photos
+def uploaded_file(filename):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+
 @app.route("/approve/<int:photo_id>", methods=["POST"])  # aprueba foto por ID (solo POST)
 @login_required  # requiere sesión admin
 def approve(photo_id):  # cambia estado a approved
@@ -234,6 +272,17 @@ def reject(photo_id):  # cambia estado a rejected
     return redirect(url_for("admin"))  # redirige a panel
 
 
+@app.route("/delete/<int:photo_id>", methods=["POST"])  # elimina foto por ID (solo POST)
+@login_required  # requiere sesión admin
+def delete(photo_id):  # elimina foto de la BD
+    photo = Photo.query.get_or_404(photo_id)  # busca foto o 404
+    flash(f"Foto eliminada.", "warning")  # mensaje
+    db.session.delete(photo)  # elimina de BD
+    db.session.commit()  # guarda cambios
+    return redirect(url_for("admin"))  # redirige a panel
+
+
 if __name__ == "__main__":  # solo si se ejecuta directamente (no importado)
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)  # inicia servidor accesible en red
+    

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{# Panel: subir + revisar pendientes + ver aprobadas #}
 <section class="py-4">
   <header class="mb-5">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
@@ -80,6 +81,7 @@
     </div>
   </div>
 
+  {# Fotos en espera de aprobación #}
   <section aria-labelledby="pending-heading" class="mb-5">
     <header class="d-flex justify-content-between align-items-center mb-4">
       <h3 id="pending-heading" class="mb-0">Fotos pendientes</h3>
@@ -135,6 +137,7 @@
     {% endif %}
   </section>
 
+  {# Fotos ya publicadas (se pueden rechazar o eliminar) #}
   <section aria-labelledby="approved-heading">
     <header class="d-flex justify-content-between align-items-center mb-4">
       <h3 id="approved-heading" class="mb-0">Fotos aprobadas</h3>
@@ -191,6 +194,7 @@
 {% endblock %}
 
 {% block scripts %}
+{# JS: previsualización de archivos + exige consentimiento #}
 <script>
 const photoInput = document.getElementById('photos');
 const previewContainer = document.getElementById('preview-container');

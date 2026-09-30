@@ -1,16 +1,17 @@
 version: "3.9"
 
 services:
+  # App Flask (Gunicorn): galería + panel + álbum apoderados
   anahuac-gallery:
-    build: .
+    build: .  # usa el Dockerfile local
     container_name: anahuac-gallery
-    restart: always
+    restart: always  # se levanta sola ante fallos/reinicios
     expose:
-      - "8000"
+      - "8000"  # solo visible para nginx (no se publica)
     volumes:
-      - ./photos:/app/photos
-      - ./instance:/app/instance
-    environment:
+      - ./photos:/app/photos  # persiste fotos subidas
+      - ./instance:/app/instance  # persiste la base de datos
+    environment:  # mismas variables que app.py (ver .env)
       - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-cambiar_por_una_clave_segura}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-escuelaanahuac}
@@ -20,20 +21,22 @@ services:
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY:-}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET:-}
 
+  # Proxy inverso: HTTPS + redirección a la app
   nginx:
     image: nginx:latest
     container_name: nginx
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "80:80"  # HTTP (ACME + redirección)
+      - "443:443"  # HTTPS público
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - ./nginx/conf.d:/etc/nginx/conf.d  # config del sitio
+      - ./certbot/conf:/etc/letsencrypt  # certificados
+      - ./certbot/www:/var/www/certbot  # validación ACME
     depends_on:
-      - anahuac-gallery
+      - anahuac-gallery  # arranca después de la app
 
+  # Renueva el certificado SSL cada 12h
   certbot:
     image: certbot/certbot
     container_name: certbot

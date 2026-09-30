@@ -1,19 +1,21 @@
 services:
+  # App web en Render (plan gratuito)
   - type: web
     name: escuela-anahuac
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    buildCommand: pip install -r requirements.txt  # instala dependencias
+    startCommand: gunicorn app:app  # servidor producción
     envVars:
       - key: FLASK_SECRET_KEY
-        generateValue: true
+        generateValue: true  # Render genera la clave de sesiones
       - key: ADMIN_PASSWORD
-        generateValue: true
-      - key: DATABASE_URL
+        generateValue: true  # cambiar por la clave compartida real
+      - key: DATABASE_URL  # PostgreSQL auto-provisionada (ver abajo)
         fromDatabase:
           name: escuela-anahuac-db
           property: connectionString
+      # Fotos persistentes (disco efímero): completar a mano en el dashboard
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
@@ -23,6 +25,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
 
+# Base de datos PostgreSQL gratuita del proyecto
 databases:
   - name: escuela-anahuac-db
     plan: free

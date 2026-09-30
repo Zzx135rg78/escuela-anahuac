@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+{# Álbum público con filtros por categoría #}
 <section class="py-4">
   <header class="text-center mb-5">
     <h1 class="mb-2">Álbum de Fotos</h1>
@@ -18,6 +19,7 @@
   </div>
 
   {% if photos %}
+  {# Rejilla de fotos (filtrable por categoría) #}
   <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3" id="photo-gallery" role="list">
     {% for photo in photos %}
     <div class="col photo-item" data-category="{{ photo.category }}" role="listitem">
@@ -48,6 +50,7 @@
   {% endif %}
 </section>
 
+{# Lightbox: foto en pantalla completa #}
 <div id="lightbox" class="lightbox-overlay" style="display:none;" aria-hidden="true" onclick="closeLightbox()" role="dialog" aria-modal="true" aria-label="Imagen en pantalla completa">
   <img id="lightbox-img" src="" alt="" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:var(--radius-lg);box-shadow:var(--shadow-2xl);">
   <button class="lightbox-close" onclick="event.stopPropagation();closeLightbox()" aria-label="Cerrar imagen">×</button>
@@ -55,6 +58,7 @@
 {% endblock %}
 
 {% block scripts %}
+{# JS: lightbox + filtro por categoría #}
 <script>
 function openLightbox(url) {
   const lightbox = document.getElementById('lightbox');

@@ -4,6 +4,7 @@
 <section class="py-5">
   <div class="row justify-content-center">
     <div class="col-12 col-md-5 col-lg-4">
+      {# Tarjeta ingreso apoderados (logo + RUT) #}
       <article class="card shadow-lg border-0">
         <div class="card-body p-4 p-md-5">
           <header class="text-center mb-4">
@@ -14,6 +15,7 @@
             <p class="text-muted mb-0">Ingresa tu RUT para ver el álbum familiar</p>
           </header>
 
+          {# Formulario: RUT validado contra la lista #}
           <form method="post" class="needs-validation" novalidate>
             <div class="mb-4">
               <label for="rut" class="form-label">RUT del apoderado</label>
@@ -47,6 +49,7 @@
 {% endblock %}
 
 {% block scripts %}
+{# JS: valida campo + foco en RUT al cargar #}
 <script>
 // Form validation
 document.querySelector('form')?.addEventListener('submit', function(e) {

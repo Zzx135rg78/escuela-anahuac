@@ -1,9 +1,11 @@
+# Web + auth + ORM
 Flask==3.0.0
 Flask-Login==0.6.3
 Flask-SQLAlchemy==3.0.5
+Werkzeug==3.0.0
+SQLAlchemy==1.4.54
+# Servidor producción + HTTP + imágenes + .env
 gunicorn==23.0.0
 requests==2.31.0
-SQLAlchemy==1.4.54
-Werkzeug==3.0.0
 cloudinary==1.36.0
 python-dotenv==1.0.1

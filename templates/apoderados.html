@@ -51,7 +51,7 @@
 {% block scripts %}
 {# JS: valida campo + foco en RUT al cargar #}
 <script>
-// Form validation
+// Valida el formulario
 document.querySelector('form')?.addEventListener('submit', function(e) {
   if (!this.checkValidity()) {
     e.preventDefault();
@@ -60,7 +60,7 @@ document.querySelector('form')?.addEventListener('submit', function(e) {
   this.classList.add('was-validated');
 });
 
-// Focus RUT field on load
+// Foco en RUT al cargar
 document.getElementById('rut')?.focus();
 </script>
 {% endblock %}

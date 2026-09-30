@@ -60,7 +60,7 @@
 {% block scripts %}
 {# JS: valida campos + foco en usuario al cargar #}
 <script>
-// Form validation
+// Valida el formulario
 document.querySelector('form')?.addEventListener('submit', function(e) {
   if (!this.checkValidity()) {
     e.preventDefault();
@@ -69,7 +69,7 @@ document.querySelector('form')?.addEventListener('submit', function(e) {
   this.classList.add('was-validated');
 });
 
-// Focus username field on load
+// Foco en usuario al cargar
 document.getElementById('username')?.focus();
 </script>
 {% endblock %}

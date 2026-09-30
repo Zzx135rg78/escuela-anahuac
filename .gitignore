@@ -7,36 +7,36 @@ __pycache__/
 venv/
 env/
 
-# Database
+# Base de datos
 *.db
 *.sqlite
 *.sqlite3
 
-# Uploads (keep structure, ignore uploaded files)
+# Subidas (conserva estructura, ignora archivos subidos)
 photos/*
 !photos/.gitkeep
 
-# IDE
+# Editores
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# Sistema
 .DS_Store
 Thumbs.db
 
-# Logs
+# Registros
 *.log
 
-# Environment
+# Entorno
 .env
 .env.local
 
-# Backup
+# Respaldos
 *.bak
 
-# Agents
+# Agentes
 .kilo/
 
 # Apoderados (datos personales, no subir)

@@ -157,7 +157,7 @@ def index():  # vista principal
 @app.route("/album")  # álbum público (solo vista, sin descarga)
 def album():  # vista del álbum público
     photos = Photo.query.filter_by(status="approved").order_by(Photo.uploaded_at.desc()).all()  # fotos aprobadas
-    return render_template("album.html", photos=photos)  # renderiza plantilla del álbum
+    return render_template("álbum.html", photos=photos)  # renderiza plantilla del álbum
 
 
 @app.route("/upload", methods=["POST"])  # endpoint para subir fotos (solo POST)
@@ -303,7 +303,7 @@ def apoderados():  # valida RUT contra lista tipo Lirmi
 @apoderado_required  # exige RUT validado
 def album_familiar():  # reutiliza la vista del álbum con fotos aprobadas
     photos = Photo.query.filter_by(status="approved").order_by(Photo.uploaded_at.desc()).all()
-    return render_template("album.html", photos=photos)
+    return render_template("álbum.html", photos=photos)
 
 
 @app.route("/salir")  # cierra sesión de apoderado

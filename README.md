@@ -92,28 +92,44 @@ flask run
 docker-compose up --build -d
 ```
 
-### Obtener certificado SSL
-```bash
-docker-compose run --rm certbot certonly --webroot -w /var/www/certbot -d tu-dominio.com
-```
+1. **Push a GitHub**:
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/TU_USUARIO/escuela-anahuac.git
+   git push -u origin main
+   ```
 
-### Actualizar `nginx/conf.d/anahuac.conf` con bloque HTTPS
+2. **En Render Dashboard** → New Blueprint Instance → Conecta el repo → Apply
 
-### Reiniciar Nginx
-```bash
-docker-compose restart nginx
-```
+3. **Variables de entorno en Render** (auto-provisionadas + manuales):
+   - `DATABASE_URL` → PostgreSQL (auto)
+   - `FLASK_SECRET_KEY` → generar string aleatorio
+   - `ADMIN_PASSWORD` → contraseña segura
 
-## ✅ Checklist de producción
+4. **URL final**: `https://escuela-anahuac.onrender.com`
 
-- [ ] Variables de entorno configuradas
-- [ ] Base de datos inicializada
-- [ ] Certificado SSL activo
-- [ ] App accesible en https://tu-dominio.com
+> ⚠️ **Fotos en Render**: El sistema de archivos es efímero. Para persistencia, integrar **Cloudinary** o **AWS S3** (pendiente).
 
-## 📜 Créditos
+## Credenciales admin (local)
 
-- **Proyecto**: Escuela Anáhuac Photo Gallery
-- **Framework**: Flask + Gunicorn
-- **Infraestructura**: Docker, Nginx, Certbot
-- **Diseño**: Principios Impeccable
+- Usuario: `admin`
+- Contraseña: `admin123` (cambiar con `ADMIN_PASSWORD`)
+
+## Funcionalidades
+
+- Subida múltiple de imágenes con consentimiento obligatorio
+- Categorías: Académico, Deportivo, Cultural, General
+- Panel admin: aprobar/rechazar/eliminar fotos
+- Galería pública solo con fotos aprobadas
+- Navegación responsive: navbar desktop + offcanvas móvil
+- Base de datos: SQLite (local) / PostgreSQL (Render)
+
+## Próximos pasos
+
+- [ ] Integrar Cloudinary para almacenamiento persistente de fotos
+- [ ] Agregar filtros por grado/evento en galería (botones en offcanvas)
+- [ ] Mejorar UX móvil: drag-drop upload, vista previa
+- [ ] Roles granulares con Flask-Login
+- [ ] Tests automatizados

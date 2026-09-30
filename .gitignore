@@ -38,3 +38,6 @@ Thumbs.db
 
 # Agents
 .kilo/
+
+# Apoderados (datos personales, no subir)
+apoderados.csv

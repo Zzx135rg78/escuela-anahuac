@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-5 col-lg-4">
+      <article class="card shadow-lg border-0">
+        <div class="card-body p-4 p-md-5">
+          <header class="text-center mb-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 overflow-hidden shadow-sm" style="width:72px;height:72px;background:#fff;border:1px solid #e3e9f2;">
+              <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo Escuela Anahuac" style="width:100%;height:100%;object-fit:cover;">
+            </div>
+            <h2 class="card-title mb-1">Apoderados</h2>
+            <p class="text-muted mb-0">Ingresa tu RUT para ver el álbum familiar</p>
+          </header>
+
+          <form method="post" class="needs-validation" novalidate>
+            <div class="mb-4">
+              <label for="rut" class="form-label">RUT del apoderado</label>
+              <div class="input-group">
+                <span class="input-group-text bg-light border-end-0" style="border-radius:var(--radius-md) 0 0 var(--radius-md);">
+                  <i class="bi bi-person-badge"></i>
+                </span>
+                <input type="text" class="form-control border-start-0" id="rut" name="rut" required autocomplete="off" placeholder="12.345.678-5" style="border-radius:0 var(--radius-md) var(--radius-md) 0;">
+                <div class="invalid-feedback">Ingresa tu RUT.</div>
+              </div>
+            </div>
+
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-images"></i> Ver álbum familiar
+              </button>
+              <a href="{{ url_for('album') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-globe"></i> Ver álbum público
+              </a>
+            </div>
+          </form>
+
+          <footer class="mt-4 pt-4 border-top text-center">
+            <p class="text-muted small mb-0">Acceso exclusivo para apoderados registrados</p>
+          </footer>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Form validation
+document.querySelector('form')?.addEventListener('submit', function(e) {
+  if (!this.checkValidity()) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  this.classList.add('was-validated');
+});
+
+// Focus RUT field on load
+document.getElementById('rut')?.focus();
+</script>
+{% endblock %}

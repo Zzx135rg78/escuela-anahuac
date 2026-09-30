@@ -1,14 +1,16 @@
-﻿import os
+﻿import csv
+import os
 import uuid
+from functools import wraps
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 try:
     from dotenv import load_dotenv
     load_dotenv()  # carga .env para que python app.py y gunicorn vean las correcciones
 except ImportError:
     pass  # python-dotenv no instalado: se usan variables de entorno del sistema
 
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory  # componentes core de Flask
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, session  # componentes core de Flask
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user  # utilidades de autenticación
 from flask_sqlalchemy import SQLAlchemy  # ORM para base de datos SQLite
 from werkzeug.utils import secure_filename  # sanitiza nombres de archivo para evitar traversal
@@ -132,7 +134,7 @@ class Photo(db.Model):  # modelo SQLAlchemy para tabla photos
     category = db.Column(db.String(64), nullable=True)  # categoría opcional
     consent = db.Column(db.Boolean, default=False, nullable=False)  # flag consentimiento apoderados
     status = db.Column(db.String(32), nullable=False, default="pending")  # estado: pending/approved/rejected
-    uploaded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)  # timestamp de subida
+    uploaded_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))  # timestamp de subida
 
 
 @app.cli.command("init-db")  # comando CLI: flask init-db
@@ -209,9 +211,9 @@ def login():  # vista de login admin
         return redirect(url_for("admin"))  # redirige a panel admin
 
     if request.method == "POST":  # si es envío de formulario
-        username = request.form.get("username", "").strip() or "admin"  # usuario del form (default admin)
+        username = request.form.get("username", "").strip() or ADMIN_USERNAME  # usuario del form (default: ADMIN_USERNAME)
         password = request.form.get("password", "")  # password del form
-        if is_valid_admin_password(password):  # valida solo la contraseña
+        if is_valid_admin_password(password):  # valida solo la contraseña: clave compartida (apoderados)
             user = AdminUser(username)  # crea usuario con el nombre ingresado
             login_user(user)  # inicia sesión (Flask-Login)
             flash("Sesión iniciada como administrador.", "success")  # mensaje éxito
@@ -221,12 +223,95 @@ def login():  # vista de login admin
     return render_template("login.html")  # renderiza formulario login (GET o POST fallido)
 
 
+APODERADOS_CSV = BASE_DIR / "apoderados.csv"  # lista tipo Lirmi: rut,nombre (no se sube a git)
+
+
+def normalizar_rut(rut):  # deja solo dígitos + DV en mayúscula: "12.345.678-5" -> "123456785"
+    return (rut or "").upper().replace(".", "").replace("-", "").replace(" ", "")
+
+
+def digito_verificador(num):  # calcula DV con módulo 11
+    s, m = 0, 2
+    for d in reversed(num):
+        s += int(d) * m
+        m = 2 if m == 7 else m + 1
+    r = 11 - (s % 11)
+    return "0" if r == 11 else "K" if r == 10 else str(r)
+
+
+def rut_valido(rut):  # valida formato y dígito verificador chileno
+    rut = normalizar_rut(rut)
+    if len(rut) < 8 or not rut[:-1].isdigit() or not rut[-1].isalnum():
+        return False
+    return rut[-1] == digito_verificador(rut[:-1])
+
+
+def cargar_apoderados():  # lee apoderados.csv -> {rut_normalizado: nombre}
+    autorizados = {}
+    if not APODERADOS_CSV.exists():  # lista aún no cargada (se hará más adelante)
+        return autorizados
+    with APODERADOS_CSV.open(encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            rut = normalizar_rut(row.get("rut", ""))
+            if rut_valido(rut):  # ignora filas con RUT inválido
+                autorizados[rut] = (row.get("nombre", "") or "").strip()
+    return autorizados
+
+
+def apoderado_required(view):  # exige sesión de apoderado con RUT autorizado
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if not session.get("apoderado_rut"):  # sin RUT validado
+            flash("Ingresa tu RUT de apoderado para ver el álbum familiar.", "warning")
+            return redirect(url_for("apoderados"))  # al formulario RUT
+        return view(*args, **kwargs)
+    return wrapper
+
+
 @app.route("/logout")  # ruta logout
 @login_required  # requiere sesión activa
 def logout():  # cierra sesión
     logout_user()  # cierra sesión (Flask-Login)
     flash("Has cerrado sesión.", "info")  # mensaje info
     return redirect(url_for("index"))  # redirige a inicio
+
+
+@app.route("/apoderados", methods=["GET", "POST"])  # ingreso apoderados con RUT
+def apoderados():  # valida RUT contra lista tipo Lirmi
+    if session.get("apoderado_rut"):  # si ya ingresó
+        return redirect(url_for("album_familiar"))  # va directo al álbum
+
+    if request.method == "POST":  # si envía el formulario
+        rut = normalizar_rut(request.form.get("rut", ""))  # normaliza lo ingresado
+        autorizados = cargar_apoderados()  # lee lista vigente
+        if not autorizados:  # lista aún no cargada
+            flash("El registro de apoderados aún no está disponible. Intenta más tarde.", "warning")
+        elif not rut_valido(rut):  # formato o DV inválido
+            flash("RUT inválido. Revísalo e intenta de nuevo (ej: 12.345.678-5).", "danger")
+        elif rut not in autorizados:  # RUT válido pero no registrado
+            flash("Este RUT no está registrado. Contacta a la escuela.", "danger")
+        else:  # RUT autorizado
+            session["apoderado_rut"] = rut  # guarda sesión de apoderado
+            session["apoderado_nombre"] = autorizados[rut]  # guarda nombre para saludo
+            flash("Bienvenido/a al álbum familiar.", "success")
+            return redirect(url_for("album_familiar"))  # entra al álbum
+
+    return render_template("apoderados.html")  # muestra formulario RUT
+
+
+@app.route("/album-familiar")  # álbum solo para apoderados autorizados
+@apoderado_required  # exige RUT validado
+def album_familiar():  # reutiliza la vista del álbum con fotos aprobadas
+    photos = Photo.query.filter_by(status="approved").order_by(Photo.uploaded_at.desc()).all()
+    return render_template("album.html", photos=photos)
+
+
+@app.route("/salir")  # cierra sesión de apoderado
+def salir():  # limpia solo la sesión familiar (no toca admin)
+    session.pop("apoderado_rut", None)
+    session.pop("apoderado_nombre", None)
+    flash("Sesión de apoderado cerrada.", "info")
+    return redirect(url_for("apoderados"))
 
 
 @app.route("/admin")  # panel de administración
@@ -276,7 +361,7 @@ def reject(photo_id):  # cambia estado a rejected
 @login_required  # requiere sesión admin
 def delete(photo_id):  # elimina foto de la BD
     photo = Photo.query.get_or_404(photo_id)  # busca foto o 404
-    flash(f"Foto eliminada.", "warning")  # mensaje
+    flash("Foto eliminada.", "warning")  # mensaje
     db.session.delete(photo)  # elimina de BD
     db.session.commit()  # guarda cambios
     return redirect(url_for("admin"))  # redirige a panel
@@ -285,4 +370,3 @@ def delete(photo_id):  # elimina foto de la BD
 if __name__ == "__main__":  # solo si se ejecuta directamente (no importado)
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)  # inicia servidor accesible en red
-    
